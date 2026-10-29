@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gillnet-ai - Phishing Detector</title>
+<style>
+  :root{--bg:#0b1620;--panel:#12202d;--line:#22384a;--ink:#e6f1f7;--mute:#8aa4b5;--ok:#35c3a0;--bad:#ff5d5d;--accent:#ffb347}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg)}
+  #bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1}
+  header,.status{text-shadow:0 2px 12px #000c}
+  .tw{animation:tw 3.5s ease-in-out infinite} @keyframes tw{50%{opacity:.2}}
+  .wrap{max-width:900px;margin:0 auto;padding:24px 16px 56px}
+  header{text-align:center;margin-bottom:16px}
+  h1{margin:0;font-size:2rem;letter-spacing:.5px}
+  header p{margin:4px 0 0;color:var(--mute)}
+  .stage{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);box-shadow:0 10px 40px #0008}
+  .stage.alert{animation:alertGlow 1.1s ease-in-out 3}
+  @keyframes alertGlow{50%{box-shadow:0 0 0 3px var(--bad),0 0 50px #ff5d5d88}}
+  svg{display:block;width:100%;height:auto}
+  .banner{position:absolute;left:50%;top:14px;transform:translateX(-50%) scale(.6);opacity:0;padding:10px 22px;border-radius:999px;
+          font-weight:700;font-size:1.25rem;text-align:center;white-space:nowrap;pointer-events:none;backdrop-filter:blur(4px)}
+  .banner small{display:block;font-weight:500;font-size:.8rem;opacity:.9}
+  .banner.show{animation:pop .5s cubic-bezier(.2,1.6,.4,1) forwards}
+  .banner.bad{background:#7a1f2bdd;border:2px solid var(--bad)}
+  .banner.ok{background:#0e5a4bdd;border:2px solid var(--ok)}
+  @keyframes pop{to{transform:translateX(-50%) scale(1);opacity:1}}
+  .status{min-height:28px;margin:12px 4px;text-align:center;color:var(--accent);font-weight:600}
+  .panel{background:rgba(12,26,38,.8);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
+  textarea{width:100%;resize:vertical;background:#0c1822;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
+  textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+  button{font:inherit;cursor:pointer;border-radius:10px;border:0}
+  #cast{background:var(--accent);color:#2a1700;font-weight:700;padding:10px 20px}
+  #cast:disabled{opacity:.5;cursor:wait}
+  .chip{background:transparent;color:var(--mute);border:1px solid var(--line);padding:6px 12px;font-size:.85rem}
+  .chip:hover{color:var(--ink);border-color:var(--mute)}
+  .verdict{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:1.15rem}
+  .verdict.bad{color:var(--bad)} .verdict.ok{color:var(--ok)}
+  .meter{height:10px;border-radius:99px;background:#0c1822;overflow:hidden;margin-bottom:12px}
+  .meter>i{display:block;height:100%;transition:width .8s ease}
+  .item{border-top:1px solid var(--line);padding:10px 0}
+  .item code{word-break:break-all;color:var(--ink)}
+  .tag{display:inline-block;font-size:.75rem;font-weight:700;border-radius:6px;padding:1px 8px;margin-right:8px}
+  .tag.bad{background:#5a1a22;color:#ff9a9a} .tag.ok{background:#0e4a3e;color:#8ff0d4}
+  .sig{display:inline-block;margin:6px 6px 0 0;padding:2px 9px;border-radius:99px;background:#1b3044;color:var(--mute);font-size:.8rem}
+  .note{color:var(--mute);font-size:.9rem;margin:6px 0 0}
+  /* scene animation */
+  .swimR{animation:swimR linear infinite} .swimL{animation:swimL linear infinite}
+  @keyframes swimR{from{transform:translateX(-80px)}to{transform:translateX(880px)}}
+  @keyframes swimL{from{transform:translateX(880px)}to{transform:translateX(-80px)}}
+  .wave{animation:wave 6s linear infinite} .wave.b{animation-duration:9s;animation-direction:reverse}
+  @keyframes wave{to{transform:translateX(-80px)}}
+  .ripple{fill:none;stroke:#cfefff;stroke-width:1.5;transform-box:fill-box;transform-origin:center;animation:rip 1.2s ease-out forwards}
+  @keyframes rip{from{transform:scale(.3);opacity:.9}to{transform:scale(3.4);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.swimR,.swimL,.wave,.tw{animation:none}}
+</style>
+</head>
+<body>
+<svg id="bg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="bgSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#091a2e"/><stop offset="1" stop-color="#3b6f8f"/></linearGradient>
+    <linearGradient id="bgWater" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a8aa6"/><stop offset=".45" stop-color="#12425c"/><stop offset="1" stop-color="#061827"/></linearGradient>
+    <radialGradient id="bgGlow"><stop offset="0" stop-color="#f6f1c7" stop-opacity=".5"/><stop offset="1" stop-color="#f6f1c7" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bgSky)"/>
+  <g id="bgStars" fill="#fff"></g>
+  <circle cx="1300" cy="150" r="130" fill="url(#bgGlow)"/>
+  <circle cx="1300" cy="150" r="52" fill="#f6f1c7"/>
+  <path d="M0 560 L0 440 Q220 330 460 450 T1000 430 T1600 455 L1600 560Z" fill="#0f2a3b"/>
+  <path d="M1080 560 L1190 390 L1260 470 L1360 360 L1520 560Z" fill="#0c2231"/>
+  <rect y="560" width="1600" height="340" fill="url(#bgWater)"/>
+  <g opacity=".3" stroke="#f6f1c7" stroke-width="3" stroke-linecap="round"><path d="M1268 605h64M1280 630h40M1290 656h20"/></g>
+  <g fill="none" stroke="#bfe7f5" stroke-opacity=".28" stroke-width="2"><path id="bgWaveA" class="wave"/><path id="bgWaveB" class="wave b"/></g>
+  <ellipse cx="1180" cy="612" rx="60" ry="12" fill="#2f8a5b" opacity=".8"/><ellipse cx="1120" cy="630" rx="38" ry="8" fill="#3a9d68" opacity=".8"/>
+</svg>
+<div class="wrap">
+  <header>
+    <h1>Gillnet-ai</h1>
+    <p>AI phishing detector: we go fishing for phish so you don't get hooked.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <svg id="scene" viewBox="0 0 800 450" role="img" aria-label="Animated pond with a fishing rod">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f2740"/><stop offset="1" stop-color="#3b6f8f"/></linearGradient>
+        <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a8aa6"/><stop offset="1" stop-color="#0b2b40"/></linearGradient>
+        <clipPath id="pondClip"><rect x="0" y="272" width="800" height="178"/></clipPath>
+        <g id="fishShape">
+          <path d="M-18 0 L-38 -11 Q-33 0 -38 11Z"/>
+          <ellipse rx="23" ry="11"/>
+          <circle cx="13" cy="-3" r="2.4" fill="#10202c"/>
+        </g>
+      </defs>
+      <rect width="800" height="450" fill="url(#sky)"/>
+      <g id="stars" fill="#fff"></g>
+      <circle cx="680" cy="72" r="28" fill="#f6f1c7" opacity=".92"/>
+      <path d="M0 272 L0 215 Q110 160 230 222 T500 212 T800 226 L800 272Z" fill="#0f2a3b"/>
+      <path d="M560 272 L610 200 L640 235 L690 185 L760 272Z" fill="#0c2231"/>
+      <rect y="272" width="800" height="178" fill="url(#water)"/>
+
+      <g clip-path="url(#pondClip)">
+        <g class="swimR" style="animation-duration:19s"><use href="#fishShape" fill="#6fcfb9" transform="translate(0 340)"/></g>
+        <g class="swimL" style="animation-duration:26s;animation-delay:-8s"><use href="#fishShape" fill="#8fb7e8" transform="translate(0 388) scale(-.8 .8)"/></g>
+        <g class="swimR" style="animation-duration:31s;animation-delay:-14s"><use href="#fishShape" fill="#c7a6e8" transform="translate(0 420) scale(.7 .7)"/></g>
+        <g class="swimL" style="animation-duration:22s;animation-delay:-3s"><use href="#fishShape" fill="#7fd6c2" transform="translate(0 305) scale(-.6 .6)"/></g>
+        <use id="nib" href="#fishShape" fill="#ffd27f" style="display:none"/>
+      </g>
+
+      <g id="waves" fill="none" stroke="#bfe7f5" stroke-opacity=".35" stroke-width="1.6">
+        <path id="waveA" class="wave" transform="translate(0 0)"/>
+        <path id="waveB" class="wave b" transform="translate(0 0)"/>
+      </g>
+      <ellipse cx="640" cy="290" rx="34" ry="7" fill="#2f8a5b"/><ellipse cx="610" cy="298" rx="22" ry="5" fill="#3a9d68"/>
+
+      <!-- bank + fisher -->
+      <path d="M0 292 L0 450 L170 450 Q185 340 140 296 Z" fill="#0a1a25"/>
+      <path d="M0 292 Q70 280 140 296 L145 306 Q70 296 0 306Z" fill="#17402f"/>
+      <g transform="translate(62 262)">
+        <rect x="-13" y="2" width="26" height="30" rx="9" fill="#e0a040"/>
+        <circle cy="-10" r="11" fill="#f1c9a0"/>
+        <path d="M-15 -14 Q0 -30 15 -14 Z M-18 -13 H18" fill="#a4452c" stroke="#a4452c" stroke-width="3" stroke-linecap="round"/>
+        <path d="M10 12 L34 10" stroke="#f1c9a0" stroke-width="5" stroke-linecap="round"/>
+      </g>
+
+      <path id="rod" stroke="#d2a45f" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path id="line" stroke="#e6f1f7" stroke-width="1.2" fill="none" opacity=".85"/>
+      <g id="bobber"><circle r="7" fill="#fff"/><path d="M-7 0 A7 7 0 0 1 7 0Z" fill="#ff5d5d"/></g>
+      <use id="catch" href="#fishShape" fill="#ff6b6b" style="display:none"/>
+      <g id="tag" style="display:none"><rect width="74" height="24" rx="6" fill="#7a1f2b" stroke="#ff5d5d" stroke-width="2"/>
+        <text x="37" y="17" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">PHISH!</text></g>
+      <g id="fx"></g>
+    </svg>
+    <div class="banner" id="banner" aria-live="polite"></div>
+  </div>
+
+  <div class="status" id="status" aria-live="polite">The pond is calm. Paste a link or an email and cast your line.</div>
+
+  <div class="panel">
+    <textarea id="input" rows="5" placeholder="Paste a URL, or a whole email, here..." spellcheck="false"></textarea>
+    <div class="row">
+      <button id="cast">🎣 Cast line</button>
+      <button class="chip" data-s="https://github.com/torvalds/linux">Try a safe link</button>
+      <button class="chip" data-s="http://paypa1-secure-login.xyz/verify/account?id=88213">Try a phish</button>
+      <button class="chip" data-s="Subject: URGENT - account suspended&#10;&#10;Dear customer, unusual activity was detected. Verify your account within 24 hours or it will be locked. Click here: http://192.168.4.7/sbi-bank/login.php">Try a phishy email</button>
+    </div>
+  </div>
+
+  <div class="panel" id="result" hidden></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const ease = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+const lerp = (a, b, t) => a + (b - a) * t;
+const ss = (a, b, t) => { t = Math.min(1, Math.max(0, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
+function tween(ms, fn, e = ease) {
+  return new Promise(res => {
+    const s = performance.now();
+    (function f(n) { const t = Math.min(1, (n - s) / ms); fn(e(t)); t < 1 ? requestAnimationFrame(f) : res(); })(s);
+  });
+}
+
+// ---- static scenery
+(function scenery() {
+  const st = $('stars');
+  for (let i = 0; i < 40; i++) {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', Math.random() * 800); c.setAttribute('cy', Math.random() * 150);
+    c.setAttribute('r', Math.random() * 1.2 + .3); c.setAttribute('opacity', Math.random() * .7 + .2);
+    st.appendChild(c);
+  }
+  const wave = (y, amp, w = 900) => { let d = `M-80 ${y}`; for (let x = -80; x < w; x += 40) d += ` q10 ${-amp} 20 0 t20 0`; return d; };
+  $('waveA').setAttribute('d', wave(276, 5));
+  $('waveB').setAttribute('d', wave(284, 4));
+  $('bgWaveA').setAttribute('d', wave(585, 6, 1700));
+  $('bgWaveB').setAttribute('d', wave(640, 5, 1700));
+  const bs = $('bgStars');
+  for (let i = 0; i < 110; i++) {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', Math.random() * 1600); c.setAttribute('cy', Math.random() * 430);
+    c.setAttribute('r', Math.random() * 1.6 + .4); c.setAttribute('opacity', Math.random() * .7 + .25);
+    if (i % 3 === 0) { c.setAttribute('class', 'tw'); c.style.animationDelay = (-Math.random() * 3.5) + 's'; }
+    bs.appendChild(c);
+  }
+})();
+
+// ---- animation state
+const BASE = { x: 96, y: 274 }, TIP = { x: 258, y: 118 }, WATER = 272, HOOK_X = 520;
+const S = {
+  bend: 0, sw: { x: 0, y: 0 }, tip: { ...TIP },
+  bx: HOOK_X, by: WATER, dip: 0, floating: true, hold: false, bobVis: true,
+  nibOn: false, nibLeave: false, nx: 0, ny: 330,
+  fishMode: null, fx: 0, fy: 0, fth: 90, fs: 1.5, decay: 1,
+};
+
+function render(t) {
+  const time = t / 1000, b = S.bend;
+  const tip = { x: TIP.x + S.sw.x + b * .45, y: TIP.y + S.sw.y + b * .7 };
+  S.tip = tip;
+  const c = { x: (BASE.x + tip.x) / 2 - b * .25, y: (BASE.y + tip.y) / 2 - b * .45 };
+  $('rod').setAttribute('d', `M${BASE.x} ${BASE.y} Q${c.x} ${c.y} ${tip.x} ${tip.y}`);
+
+  if (S.hold) { S.bx = tip.x; S.by = tip.y + 22; }
+  else if (S.floating) S.by = WATER + Math.sin(time * 2.2) * 1.8 + S.dip;
+  $('bobber').setAttribute('transform', `translate(${S.bx} ${S.by})`);
+  $('bobber').style.display = S.bobVis ? '' : 'none';
+
+  let hx = S.bx, hy = S.by - 6, sag = Math.max(6, 34 - b * .5);
+  if (S.fishMode) {
+    if (S.fishMode === 'hang') {
+      S.fx = tip.x + Math.sin(time * 2.6) * 8 * S.decay;
+      S.fy = tip.y + 62;
+      S.fth = 90 + Math.sin(time * 2.6 + 1) * 7 * S.decay;
+    }
+    const r = S.fth * Math.PI / 180, L = 23 * S.fs + 6;
+    hx = S.fx - L * Math.cos(r); hy = S.fy - L * Math.sin(r);
+    sag = S.fishMode === 'hang' ? 0 : 10;
+    $('catch').setAttribute('transform', `translate(${S.fx} ${S.fy}) rotate(${S.fth}) scale(${-S.fs} ${S.fs})`);
+    if (S.fishMode === 'hang') $('tag').setAttribute('transform', `translate(${S.fx + 34} ${S.fy - 12})`);
+  }
+  $('line').setAttribute('d', `M${tip.x} ${tip.y} Q${(tip.x + hx) / 2} ${(tip.y + hy) / 2 + sag} ${hx} ${hy}`);
+
+  const nib = $('nib');
+  if (S.nibOn) {
+    const w = time * 1.5;
+    S.nx = S.bx + Math.cos(w) * 58; S.ny = 330 + Math.sin(w * 1.4) * 16;
+    nib.style.display = '';
+    nib.setAttribute('transform', `translate(${S.nx} ${S.ny}) scale(${-Math.sin(w) > 0 ? 1 : -1} 1)`);
+  } else if (S.nibLeave) {
+    S.nx += 3; S.ny += 0.4;
+    nib.setAttribute('transform', `translate(${S.nx} ${S.ny}) scale(1 1)`);
+    if (S.nx > 860) { S.nibLeave = false; nib.style.display = 'none'; }
+  } else nib.style.display = 'none';
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+// ---- effects
+function ripple(x, y = WATER) {
+  const e = document.createElementNS(NS, 'ellipse');
+  e.setAttribute('cx', x); e.setAttribute('cy', y + 2); e.setAttribute('rx', 14); e.setAttribute('ry', 3.5);
+  e.setAttribute('class', 'ripple'); $('fx').appendChild(e); setTimeout(() => e.remove(), 1300);
+}
+function splash(x, y = WATER, n = 16) {
+  const ps = [];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('r', 2 + Math.random() * 2.5); c.setAttribute('fill', '#cfefff'); $('fx').appendChild(c);
+    ps.push({ c, vx: (Math.random() - .5) * 170, vy: -(120 + Math.random() * 190) });
+  }
+  tween(900, t => ps.forEach(p => {
+    const s = t * .9;
+    p.c.setAttribute('cx', x + p.vx * s); p.c.setAttribute('cy', y + p.vy * s + 430 * s * s); p.c.setAttribute('opacity', 1 - t);
+  }), x => x).then(() => ps.forEach(p => p.c.remove()));
+  ripple(x, y); setTimeout(() => ripple(x, y), 200);
+}
+
+// ---- sequences
+const status = txt => { $('status').textContent = txt; };
+
+async function reset() {
+  $('banner').className = 'banner'; $('stage').classList.remove('alert');
+  $('tag').style.display = 'none'; $('catch').style.display = 'none';
+  if (S.fishMode) { S.fishMode = null; S.hold = true; S.bobVis = true; S.floating = false; S.bend = 0; }
+}
+
+async function cast() {
+  await reset();
+  if (!S.hold) { // reel the bobber in first
+    const x0 = S.bx, y0 = S.by; S.floating = false;
+    await tween(400, t => { S.bx = lerp(x0, S.tip.x, t); S.by = lerp(y0, S.tip.y + 22, t); S.bend = 8 * t; });
+    S.hold = true;
+  }
+  await tween(320, t => { S.sw.x = -55 * t; S.sw.y = 20 * t; S.bend = 8 - 20 * t; });
+  await tween(260, t => { S.sw.x = -55 + 100 * t; S.sw.y = 20 - 14 * t; S.bend = -12 + 30 * t; }, t => t * t);
+  S.hold = false;
+  const x0 = S.bx, y0 = S.by;
+  await Promise.all([
+    tween(800, t => { S.bx = lerp(x0, HOOK_X, t); S.by = lerp(y0, WATER, t) - 120 * Math.sin(Math.PI * t); }, t => t),
+    tween(800, t => { S.sw.x = lerp(45, 0, t); S.sw.y = lerp(6, 0, t); S.bend = lerp(18, 0, t); }),
+  ]);
+  S.bx = HOOK_X; S.by = WATER; S.floating = true; S.dip = 0;
+  splash(HOOK_X);
+}
+
+async function catchIt(d) {
+  status('Something is biting... 👀');
+  S.nibOn = false;
+  await tween(1000, t => { S.dip = Math.abs(Math.sin(t * Math.PI * 5)) * 9 * (1 - t * .3) + t * 8; S.bend = t * 14; }, t => t);
+  status('Gotcha! 🎣');
+  await tween(220, t => { S.bend = 14 + 40 * t; });
+  S.floating = false; S.bobVis = false;
+  const x0 = S.bx;
+  S.fishMode = 'reel'; S.fx = x0; S.fy = 300; S.fth = -110; $('catch').style.display = '';
+  splash(x0, WATER, 22);
+  const P0 = { x: x0, y: 300 }, P1 = { x: 400, y: 10 };
+  const fin = { x: TIP.x + 18 * .45, y: TIP.y + 18 * .7 + 62 };
+  await tween(1300, t => {
+    const u = 1 - t;
+    const x = u * u * P0.x + 2 * u * t * P1.x + t * t * fin.x, y = u * u * P0.y + 2 * u * t * P1.y + t * t * fin.y;
+    const dx = 2 * u * (P1.x - P0.x) + 2 * t * (fin.x - P1.x), dy = 2 * u * (P1.y - P0.y) + 2 * t * (fin.y - P1.y);
+    const th = Math.atan2(-dy, -dx) * 180 / Math.PI;
+    S.fx = x; S.fy = y; S.fth = lerp(th, 90, ss(.72, 1, t)); S.bend = lerp(54, 18, ss(.3, 1, t));
+  }, t => t * (2 - t) * .6 + t * .4);
+  S.fishMode = 'hang'; S.decay = 1; $('tag').style.display = '';
+  $('stage').classList.add('alert');
+  const b = $('banner'); b.className = 'banner bad show';
+  b.innerHTML = '🎣 We caught a phish!<small></small>'; b.querySelector('small').textContent = `${(d.score * 100).toFixed(1)}% phishing confidence`;
+  status('Phish on the line! Do NOT click that link. 🚫');
+}
+
+async function safeIt(d) {
+  status('Just a harmless nibble...');
+  S.nibOn = false; S.nibLeave = true;
+  await tween(500, t => { S.dip = 6 * Math.sin(t * Math.PI * 2); }, t => t); S.dip = 0;
+  const b = $('banner'); b.className = 'banner ok show';
+  b.innerHTML = '🌿 No phish here<small></small>'; b.querySelector('small').textContent = `only ${(d.score * 100).toFixed(1)}% phishing confidence`;
+  status(d.note || 'The pond is clean. Looks safe.');
+}
+
+// ---- result panel
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function showResult(d) {
+  const box = $('result'); box.hidden = false; box.replaceChildren();
+  const bad = d.verdict === 'phishing', col = bad ? 'var(--bad)' : 'var(--ok)';
+  box.append(el('p', 'verdict ' + (bad ? 'bad' : 'ok'), bad ? '🎣 Phishing detected' : '🌿 Looks safe'));
+  const m = el('div', 'meter'), i = el('i'); i.style.background = col; i.style.width = '0%'; m.append(i); box.append(m);
+  requestAnimationFrame(() => requestAnimationFrame(() => { i.style.width = (d.score * 100).toFixed(1) + '%'; }));
+  if (d.note) box.append(el('p', 'note', d.note));
+  if (d.cues.length) {
+    const w = el('div', 'item'); w.append(el('div', '', 'Suspicious wording'));
+    d.cues.forEach(c => w.append(el('span', 'sig', c))); box.append(w);
+  }
+  d.results.forEach(r => {
+    const w = el('div', 'item');
+    const line = el('div'); line.append(el('span', 'tag ' + (r.phishing ? 'bad' : 'ok'), r.phishing ? 'PHISH' : 'SAFE'),
+      el('span', '', (r.prob * 100).toFixed(1) + '%  '), el('code', '', r.url));
+    w.append(line); r.signals.forEach(s => w.append(el('span', 'sig', s))); box.append(w);
+  });
+}
+
+// ---- main flow
+const MSGS = ['Sniffing the URL... 👃', 'Checking for sneaky keywords...', 'Measuring domain entropy...', 'Asking the AI what it smells...'];
+async function run() {
+  const text = $('input').value.trim();
+  if (!text) { status('Paste a link or an email first 🙂'); return; }
+  const btn = $('cast'); btn.disabled = true; $('result').hidden = true;
+  let data = null, err = null;
+  fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => data = d).catch(e => err = e);
+  status('Casting the line... 🎣');
+  await cast();
+  S.nibOn = true; S.nibLeave = false;
+  const t0 = performance.now(); let i = 0;
+  while (performance.now() - t0 < 2800 || (!data && !err)) {
+    status(MSGS[i++ % MSGS.length]); ripple(S.bx); await sleep(700);
+  }
+  if (err || !data) { S.nibOn = false; status("Couldn't reach the Gillnet-ai server. Is app.py running?"); btn.disabled = false; return; }
+  if (data.verdict === 'phishing') await catchIt(data); else await safeIt(data);
+  showResult(data); btn.disabled = false;
+}
+$('cast').addEventListener('click', run);
+$('input').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) run(); });
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => { $('input').value = c.dataset.s.replace(/&#10;/g, '\n'); }));
+</script>
+</body>
+</html>
