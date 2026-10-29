@@ -1,48 +1,37 @@
 # 🎣 Gillnet-ai
 
-> An AI-powered phishing detection engine with an interactive fishing-themed interface.
+> Real-time phishing detection engine and threat triage platform combining dynamic network forensics with an ensemble machine learning pipeline.
 
-![Gillnet-ai banner](assets/preview.svg)
+![Gillnet-ai Banner](assets/preview.svg)
 
-**Gillnet-ai** analyzes suspicious URLs and raw email bodies to detect phishing threats in real time. Paste a URL or message, cast your line, and let the detection engine hook, evaluate, and reel in malicious threats.
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Framework: Flask](https://img.shields.io/badge/Framework-Flask-lightgrey.svg)](https://flask.palletsprojects.com/)
+[![Engine: Scikit--Learn](https://img.shields.io/badge/ML-Scikit--Learn-orange.svg)](https://scikit-learn.org/)
+
+**Gillnet-ai** analyzes suspicious URLs, domain structures, and raw message payloads to identify credential harvesters and deceptive web infrastructure in real time. It features an interactive fishing-themed web dashboard and an automated CLI designed for security operations and triage workflows.
 
 ---
 
-## 📸 Demo
+## 📸 Interface Preview
 
-![Gillnet-ai web interface](assets/screenshot.png)
+![Gillnet-ai Web Interface](assets/screenshot.png)
 
 ---
 
 ## ✨ Features
 
-- **Multi-Vector Analysis:** Inspects raw URLs, domain structures, and full email content.
-- **Ensemble Machine Learning:** Combines lexical heuristics with n-gram linguistic features.
-- **Interactive UI:** Dynamic, fishing-themed dashboard displaying threat metrics and classification confidence.
-- **Dual Interface:** Accessible via a lightweight web app (`app.py`) or scriptable CLI (`gillnet.py`).
+- **Dynamic Network Telemetry:** Performs live A-record DNS resolution, SSL/TLS certificate verification, and tracks open HTTP redirect hops.
+- **Domain Age Profiling:** Queries WHOIS records to identify newly registered domains (<30 days), a key indicator of ephemeral phishing kits.
+- **Ensemble Machine Learning:** Blends a **Random Forest** classifier trained on 13+ structural lexical features with an **n-gram Logistic Regression** pipeline targeting typosquatting patterns.
+- **Explainable Triage Signals:** Flags actionable detection indicators (e.g., raw IP hostnames, excessive subdomain depth, elevated Shannon entropy, deceptive credential keywords).
+- **Dual Mode Deployment:** Accessible via an interactive web dashboard (Flask/Gunicorn) or a scriptable terminal CLI.
 
 ---
 
-## 🧠 How It Works
+## 🧠 Detection Architecture
 
-Gillnet-ai relies on an ensemble classification pipeline:
-
-1. **Structural Heuristics (~23 Features):** Extracts URL/domain characteristics including Shannon entropy, suspicious TLDs, IP-based hostnames, excessive subdomains, redirect triggers, and character anomalies.
-2. **Linguistic Analysis:** Evaluates character and word n-grams using Logistic Regression to capture subtle typosquatting and deceptive lexical patterns.
-3. **Probability Ensemble:** Blends predictions from a **Random Forest** classifier and the **n-gram Logistic Regression** model to produce a final weighted threat probability score.
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.9+
-- pip
-
-### 1. Clone & Install
-
-```bash
-git clone [https://github.com/Gouthamjoshi01/Gillnet-ai.git](https://github.com/Gouthamjoshi01/Gillnet-ai.git)
-cd Gillnet-ai
-pip install -r requirements.txt
+```text
+Incoming Target URL
+        │
+        ├──► [Feature Extraction]
