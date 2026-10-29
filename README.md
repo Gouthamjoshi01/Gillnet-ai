@@ -34,4 +34,17 @@
 ```text
 Incoming Target URL
         │
-        ├──► [Feature Extraction]
+        ├──► [Feature Extraction] ──► Shannon Entropy, Subdomain Depth, TLD Profiling
+        │                                        │
+        │                                        ▼
+        │                             [Random Forest Classifier]
+        │                                        │
+        ├──► [Character n-grams] ───► [Logistic Regression]
+        │                                        │
+        │                                        ▼
+        │                                [Ensemble Probability]
+        │                                        │
+        └──► [Network Telemetry] ────► DNS Records, WHOIS Domain Age, SSL Handshake
+                                                 │
+                                                 ▼
+                                     [Composite Threat Score]
