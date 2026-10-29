@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gillnet-ai web UI backend.  Run:  python app.py   ->  http://127.0.0.1:5000"""
+"""Gillnet-ai web UI backend. Run: python app.py -> http://127.0.0.1:5000"""
 import os
 import re
 
@@ -13,7 +13,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=os.path.join(BASE, "static"), static_url_path="")
 
 URL_RE = re.compile(r"""(?:https?://|www\.)[^\s<>"'\)\]]+""", re.I)
-# Wording cues for emails (simple heuristic until a text model is trained)
+
 CUES = [
     r"urgent(ly)?", r"verify your (account|identity|email)", r"(account|password)[^.\n]{0,25}(suspend|expire|lock)",
     r"click (here|below|the link)", r"within (24|48) hours", r"unusual (activity|sign[- ]?in)",
@@ -27,9 +27,11 @@ def load_model():
     if os.path.exists(path):
         return joblib.load(path)
     sample = os.path.join(BASE, "sample_data.csv")
-    print("[!] No trained model found - training on the synthetic sample_data.csv (demo only).")
+    print("[!] No trained model found - training on sample_data.csv (demo mode).")
     df = pd.read_csv(sample)
-    return PhishModel().fit(df["url"].astype(str).tolist(), df["label"].astype(int).values)
+    model = PhishModel().fit(df["url"].astype(str).tolist(), df["label"].astype(int).values)
+    joblib.dump(model, path)
+    return model
 
 
 MODEL = load_model()
@@ -63,7 +65,9 @@ def scan():
     if urls:
         for u, p in zip(urls, MODEL.predict_proba(urls)):
             results.append({
-                "url": u, "prob": float(p), "phishing": bool(p >= 0.5),
+                "url": u,
+                "prob": float(p),
+                "phishing": bool(p >= 0.5),
                 "signals": MODEL.explain(u) if p >= 0.5 else [],
             })
     url_score = max((r["prob"] for r in results), default=0.0)
@@ -72,7 +76,10 @@ def scan():
     note = "" if urls else "No links found - verdict is based on wording cues only (heuristic)."
     return jsonify(
         verdict="phishing" if score >= 0.5 else "safe",
-        score=score, results=results, cues=cues, note=note,
+        score=score,
+        results=results,
+        cues=cues,
+        note=note,
     )
 
 

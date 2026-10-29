@@ -1,80 +1,158 @@
 #!/usr/bin/env python3
-"""Gillnet-ai web UI backend.  Run:  python app.py   ->  http://127.0.0.1:5000"""
+"""Gillnet-ai ML engine: feature extraction, ensemble model, training, and CLI."""
+import argparse
+import math
 import os
 import re
+from urllib.parse import urlparse
 
 import joblib
+import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request, send_from_directory
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
 
-from gillnet import MODEL_PATH, PhishModel
+MODEL_PATH = "gillnet_model.joblib"
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__, static_folder=os.path.join(BASE, "static"), static_url_path="")
+SUSPICIOUS_TLDS = {
+    ".xyz", ".top", ".club", ".work", ".info", ".buzz", ".fit",
+    ".tk", ".ml", ".ga", ".cf", ".gq", ".country", ".kim", ".cricket"
+}
 
-URL_RE = re.compile(r"""(?:https?://|www\.)[^\s<>"'\)\]]+""", re.I)
-# Wording cues for emails (simple heuristic until a text model is trained)
-CUES = [
-    r"urgent(ly)?", r"verify your (account|identity|email)", r"(account|password)[^.\n]{0,25}(suspend|expire|lock)",
-    r"click (here|below|the link)", r"within (24|48) hours", r"unusual (activity|sign[- ]?in)",
-    r"confirm your", r"limited time", r"update your (payment|billing)", r"act now", r"immediate action",
+KEYWORDS = [
+    "login", "verify", "account", "update", "secure", "banking",
+    "signin", "confirm", "service", "password", "support", "billing"
 ]
-CUE_RE = [re.compile(c, re.I) for c in CUES]
 
 
-def load_model():
-    path = os.path.join(BASE, MODEL_PATH)
-    if os.path.exists(path):
-        return joblib.load(path)
-    sample = os.path.join(BASE, "sample_data.csv")
-    print("[!] No trained model found - training on the synthetic sample_data.csv (demo only).")
-    df = pd.read_csv(sample)
-    return PhishModel().fit(df["url"].astype(str).tolist(), df["label"].astype(int).values)
+def shannon_entropy(s: str) -> float:
+    if not s:
+        return 0.0
+    freq = {}
+    for c in s:
+        freq[c] = freq.get(c, 0) + 1
+    ent = 0.0
+    for count in freq.values():
+        p = count / len(s)
+        ent -= p * math.log2(p)
+    return ent
 
 
-MODEL = load_model()
+def extract_features(url: str) -> list:
+    url_lower = url.lower()
+    if not re.match(r"^https?://", url_lower):
+        parsed = urlparse("http://" + url)
+    else:
+        parsed = urlparse(url)
+
+    hostname = parsed.hostname or ""
+    path = parsed.path or ""
+
+    url_len = len(url)
+    host_len = len(hostname)
+    dot_count = url.count(".")
+    hyphen_count = url.count("-")
+    at_count = url.count("@")
+    num_digits = sum(c.isdigit() for c in url)
+    digit_ratio = num_digits / max(url_len, 1)
+
+    ip_pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
+    is_ip = 1 if re.match(ip_pattern, hostname) else 0
+
+    suspicious_tld = 1 if any(hostname.endswith(tld) for tld in SUSPICIOUS_TLDS) else 0
+    subdomains = max(len(hostname.split(".")) - 2, 0)
+    has_redirect = 1 if "//" in path else 0
+    entropy = shannon_entropy(hostname)
+    keyword_hits = sum(1 for kw in KEYWORDS if kw in url_lower)
+    is_https = 1 if parsed.scheme == "https" else 0
+
+    return [
+        url_len, host_len, dot_count, hyphen_count, at_count,
+        digit_ratio, is_ip, suspicious_tld, subdomains,
+        has_redirect, entropy, keyword_hits, is_https
+    ]
 
 
-def extract_urls(text: str):
-    urls = [u.rstrip(".,;:!?") for u in URL_RE.findall(text)]
-    if not urls and " " not in text.strip() and "." in text:
-        urls = [text.strip()]
-    seen, out = set(), []
-    for u in urls:
-        if u not in seen:
-            seen.add(u)
-            out.append(u)
-    return out[:20]
+class PhishModel:
+    def __init__(self):
+        self.rf = RandomForestClassifier(n_estimators=100, random_state=42)
+        self.text_pipe = Pipeline([
+            ("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), max_features=2000)),
+            ("clf", LogisticRegression(max_iter=1000, random_state=42))
+        ])
+
+    def fit(self, urls: list, labels: np.ndarray):
+        features = np.array([extract_features(u) for u in urls])
+        self.rf.fit(features, labels)
+        self.text_pipe.fit(urls, labels)
+        return self
+
+    def predict_proba(self, urls: list) -> list:
+        features = np.array([extract_features(u) for u in urls])
+        rf_probs = self.rf.predict_proba(features)[:, 1]
+        text_probs = self.text_pipe.predict_proba(urls)[:, 1]
+        ensemble_probs = (0.6 * rf_probs) + (0.4 * text_probs)
+        return ensemble_probs.tolist()
+
+    def explain(self, url: str) -> list:
+        signals = []
+        parsed = urlparse(url if "://" in url else f"http://{url}")
+        host = parsed.hostname or ""
+
+        if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
+            signals.append("Host is a raw IP address")
+        if any(host.endswith(t) for t in SUSPICIOUS_TLDS):
+            signals.append("High-risk or uncommon TLD")
+        if sum(1 for kw in KEYWORDS if kw in url.lower()) >= 2:
+            signals.append("Multiple sensitive authentication keywords")
+        if shannon_entropy(host) > 3.8:
+            signals.append("High hostname entropy (possible DGA or typosquatting)")
+        if len(host.split(".")) > 3:
+            signals.append("Excessive subdomain depth")
+        if "@" in url:
+            signals.append("URL contains embedded credentials (@)")
+        if not signals:
+            signals.append("Anomalous structural patterns detected by ensemble classifier")
+        return signals
 
 
-@app.get("/")
-def index():
-    return send_from_directory(app.static_folder, "index.html")
+def main():
+    parser = argparse.ArgumentParser(description="Gillnet Phishing Classifier CLI")
+    subparsers = parser.add_subparsers(dest="command")
 
+    train_p = subparsers.add_parser("train")
+    train_p.add_argument("--data", default="sample_data.csv", help="Path to training dataset CSV")
 
-@app.post("/api/scan")
-def scan():
-    text = (request.get_json(silent=True) or {}).get("text", "").strip()
-    if not text:
-        return jsonify(error="empty input"), 400
-    urls = extract_urls(text)
-    cues = sorted({m.group(0).lower() for r in CUE_RE for m in [r.search(text)] if m})
-    results = []
-    if urls:
-        for u, p in zip(urls, MODEL.predict_proba(urls)):
-            results.append({
-                "url": u, "prob": float(p), "phishing": bool(p >= 0.5),
-                "signals": MODEL.explain(u) if p >= 0.5 else [],
-            })
-    url_score = max((r["prob"] for r in results), default=0.0)
-    cue_score = min(0.15 * len(cues), 0.7) if len(text.split()) > 3 else 0.0
-    score = max(url_score, cue_score)
-    note = "" if urls else "No links found - verdict is based on wording cues only (heuristic)."
-    return jsonify(
-        verdict="phishing" if score >= 0.5 else "safe",
-        score=score, results=results, cues=cues, note=note,
-    )
+    pred_p = subparsers.add_parser("predict")
+    pred_p.add_argument("url", help="Target URL to analyze")
+
+    args = parser.parse_args()
+
+    if args.command == "train":
+        if not os.path.exists(args.data):
+            print(f"[-] Data file {args.data} not found.")
+            return
+        df = pd.read_csv(args.data)
+        model = PhishModel().fit(df["url"].astype(str).tolist(), df["label"].astype(int).values)
+        joblib.dump(model, MODEL_PATH)
+        print(f"[+] Model successfully trained and saved to {MODEL_PATH}")
+
+    elif args.command == "predict":
+        if not os.path.exists(MODEL_PATH):
+            print("[-] Model file not found. Run train first.")
+            return
+        model = joblib.load(MODEL_PATH)
+        prob = model.predict_proba([args.url])[0]
+        status = "PHISHING" if prob >= 0.5 else "LEGITIMATE"
+        print(f"\nTarget: {args.url}")
+        print(f"Status: {status} ({prob * 100:.2f}% risk)")
+        if prob >= 0.5:
+            print("Signals:", ", ".join(model.explain(args.url)))
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    main()
