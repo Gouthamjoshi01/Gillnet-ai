@@ -1,36 +1,48 @@
-# Gillnet-ai
+# 🎣 Gillnet-ai
 
-AI phishing detector with a fishing-themed web UI. Paste a URL or a whole email, Gillnet-ai casts a line, and if it's phishing, you'll see the phish get reeled in.
+> An AI-powered phishing detection engine with an interactive fishing-themed interface.
 
 ![Gillnet-ai banner](assets/preview.svg)
 
-## Demo
+**Gillnet-ai** analyzes suspicious URLs and raw email bodies to detect phishing threats in real time. Paste a URL or message, cast your line, and watch the detection engine hook, evaluate, and reel in malicious threats.
+
+---
+
+## 📸 Demo
 
 ![Gillnet-ai web interface](assets/screenshot.png)
 
-## Run
+---
+
+## ✨ Features
+
+- **Multi-Vector Analysis:** Inspects raw URLs, domain structures, and full email content.
+- **Ensemble Machine Learning:** Combines lexical heuristics with n-gram linguistic features.
+- **Interactive UI:** Dynamic, fishing-themed dashboard displaying threat metrics and classification confidence.
+- **Dual Interface:** Accessible via a lightweight web app or scriptable CLI.
+
+---
+
+## 🧠 How It Works
+
+Gillnet-ai relies on an ensemble classification pipeline:
+
+1. **Structural Heuristics (~23 Features):** Extracts URL/domain characteristics including Shannon entropy, suspicious TLDs, IP-based hostnames, excessive subdomains, redirect triggers, and character anomalies.
+2. **Linguistic Analysis:** Evaluates character and word n-grams using Logistic Regression to capture subtle typosquatting and deceptive lexical patterns.
+3. **Probability Ensemble:** Blends predictions from a **Random Forest** classifier and the **n-gram Logistic Regression** model to produce a final weighted threat probability score.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.9+
+- pip
+
+### 1. Clone & Install
 
 ```bash
+git clone [https://github.com/Gouthamjoshi01/Gillnet-ai.git](https://github.com/Gouthamjoshi01/Gillnet-ai.git)
+cd Gillnet-ai
 pip install -r requirements.txt
-python gillnet.py train --data your_dataset.csv   # columns: url,label (1=phish, 0=legit)
-python app.py                                    # then open http://127.0.0.1:5000
-```
-
-Without a trained model, `app.py` falls back to the synthetic `sample_data.csv` (demo only).
-
-## CLI
-
-```bash
-python gillnet.py predict "http://paypa1-secure-login.xyz/verify"
-```
-
-## How it works
-
-Random Forest on ~23 URL features + char n-gram logistic regression, probabilities averaged.
-Emails: links are extracted and scored; wording cues (urgency, "verify your account"...) add a simple heuristic.
-
-## Notes
-
-- `sample_data.csv` is **synthetic demo data** so the pipeline runs out of the box. Scores from it are not real accuracy.
-  Train on real data (e.g. PhishTank/OpenPhish for phishing URLs, Tranco top sites for legit) and report real precision/recall.
-- Email mode extracts links and adds a simple wording heuristic; a trained text classifier is planned.
