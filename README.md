@@ -2,45 +2,11 @@
 
 AI phishing detector with a fishing-themed web UI. Paste a URL or a whole email, Gillnet-ai casts a line, and if it's phishing, you'll see the phish get reeled in.
 
-![Gillnet-ai Banner](assets/preview.png)
+![Gillnet-ai banner](assets/preview.svg)
 
-## Overview & Demo
+## Demo
 
-![Gillnet-ai Web Interface Screenshot](assets/screenshot.png)
-
-## Run
-
-```bash
-pip install -r requirements.txt
-python gillnet.py train --data your_dataset.csv   # columns: url,label (1=phish, 0=legit)
-python app.py                                    # then open http://127.0.0.1:5000
-```
-
-Without a trained model, `app.py` falls back to the synthetic `sample_data.csv` (demo only).
-
-## CLI
-
-```bash
-python gillnet.py predict "http://paypa1-secure-login.xyz/verify"
-```
-
-## How it works
-
-Random Forest on ~23 URL features + char n-gram logistic regression, probabilities averaged.
-Emails: links are extracted and scored; wording cues (urgency, "verify your account"...) add a simple heuristic.
-
-## Notes
-
-- `
-# Gillnet-ai
-
-AI phishing detector with a fishing-themed web UI. Paste a URL or a whole email, Gillnet-ai casts a line, and if it's phishing, you'll see the phish get reeled in.
-
-![Gillnet-ai Banner](assets/preview.png)
-
-## Overview & Demo
-
-![Gillnet-ai Web Interface Screenshot](assets/screenshot.png)
+![Gillnet-ai web interface](assets/screenshot.png)
 
 ## Run
 
