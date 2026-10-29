@@ -4,7 +4,7 @@
 
 ![Gillnet-ai banner](assets/preview.svg)
 
-**Gillnet-ai** analyzes suspicious URLs and raw email bodies to detect phishing threats in real time. Paste a URL or message, cast your line, and watch the detection engine hook, evaluate, and reel in malicious threats.
+**Gillnet-ai** analyzes suspicious URLs and raw email bodies to detect phishing threats in real time. Paste a URL or message, cast your line, and let the detection engine hook, evaluate, and reel in malicious threats.
 
 ---
 
@@ -19,7 +19,7 @@
 - **Multi-Vector Analysis:** Inspects raw URLs, domain structures, and full email content.
 - **Ensemble Machine Learning:** Combines lexical heuristics with n-gram linguistic features.
 - **Interactive UI:** Dynamic, fishing-themed dashboard displaying threat metrics and classification confidence.
-- **Dual Interface:** Accessible via a lightweight web app or scriptable CLI.
+- **Dual Interface:** Accessible via a lightweight web app (`app.py`) or scriptable CLI (`gillnet.py`).
 
 ---
 
