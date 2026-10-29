@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gillnet-ai web UI backend. Run: python app.py -> http://127.0.0.1:5000"""
+"""Gillnet-ai Web Engine & REST API."""
 import os
 import re
 
@@ -7,7 +7,7 @@ import joblib
 import pandas as pd
 from flask import Flask, jsonify, request, send_from_directory
 
-from gillnet import MODEL_PATH, PhishModel
+from gillnet import MODEL_PATH, PhishModel, ThreatAnalyzer
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=os.path.join(BASE, "static"), static_url_path="")
@@ -27,7 +27,6 @@ def load_model():
     if os.path.exists(path):
         return joblib.load(path)
     sample = os.path.join(BASE, "sample_data.csv")
-    print("[!] No trained model found - training on sample_data.csv (demo mode).")
     df = pd.read_csv(sample)
     model = PhishModel().fit(df["url"].astype(str).tolist(), df["label"].astype(int).values)
     joblib.dump(model, path)
@@ -35,6 +34,7 @@ def load_model():
 
 
 MODEL = load_model()
+ANALYZER = ThreatAnalyzer(MODEL)
 
 
 def extract_urls(text: str):
@@ -46,7 +46,7 @@ def extract_urls(text: str):
         if u not in seen:
             seen.add(u)
             out.append(u)
-    return out[:20]
+    return out[:10]
 
 
 @app.get("/")
@@ -56,32 +56,29 @@ def index():
 
 @app.post("/api/scan")
 def scan():
-    text = (request.get_json(silent=True) or {}).get("text", "").strip()
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "").strip()
     if not text:
-        return jsonify(error="empty input"), 400
+        return jsonify(error="Empty input payload"), 400
+
     urls = extract_urls(text)
     cues = sorted({m.group(0).lower() for r in CUE_RE for m in [r.search(text)] if m})
-    results = []
-    if urls:
-        for u, p in zip(urls, MODEL.predict_proba(urls)):
-            results.append({
-                "url": u,
-                "prob": float(p),
-                "phishing": bool(p >= 0.5),
-                "signals": MODEL.explain(u) if p >= 0.5 else [],
-            })
-    url_score = max((r["prob"] for r in results), default=0.0)
+
+    inspections = [ANALYZER.analyze(u) for u in urls]
+    max_url_score = max((i["risk_score"] for i in inspections), default=0.0)
     cue_score = min(0.15 * len(cues), 0.7) if len(text.split()) > 3 else 0.0
-    score = max(url_score, cue_score)
-    note = "" if urls else "No links found - verdict is based on wording cues only (heuristic)."
+
+    overall_score = max(max_url_score, cue_score)
+    verdict = "phishing" if overall_score >= 0.5 else "safe"
+
     return jsonify(
-        verdict="phishing" if score >= 0.5 else "safe",
-        score=score,
-        results=results,
-        cues=cues,
-        note=note,
+        verdict=verdict,
+        overall_risk_score=overall_score,
+        target_evaluations=inspections,
+        heuristic_cues=cues,
+        summary="Phishing indicators identified." if verdict == "phishing" else "No anomalous threats flagged."
     )
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)
