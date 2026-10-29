@@ -1,6 +1,3 @@
-
-# Gillnet-ai
-
 # Gillnet-ai
 
 AI phishing detector with a fishing-themed web UI. Paste a URL or a whole email, Gillnet-ai casts a line, and if it's phishing, you'll see the phish get reeled in.
